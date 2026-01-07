@@ -1,19 +1,24 @@
+from flask import Flask, request, jsonify
+from flask_cors import CORS
 from model import classify_text
-from responses import generate_response
+from response_generator import generate_response
 
+app = Flask(__name__)
+CORS(app)
+
+@app.route("/chat", methods=["POST"])
 def chat():
-    print("Mental Health Chatbot (type 'exit' to quit)\n")
+    data = request.get_json()
+    user_message = data.get("message", "")
 
-    while True:
-        user_input = input("You: ")
-        if user_input.lower() == "exit":
-            print("Chatbot: Take care. You're not alone.")
-            break
+    emotion, confidence = classify_text(user_message)
+    response = generate_response(emotion)
 
-        emotion, confidence = classify_text(user_input)
-        reply = generate_response(emotion)
-
-        print(f"Chatbot ({emotion}, {confidence:.2f}): {reply}\n")
+    return jsonify({
+        "emotion": emotion,
+        "confidence": confidence,
+        "response": response
+    })
 
 if __name__ == "__main__":
-    chat()
+    app.run(debug=True)

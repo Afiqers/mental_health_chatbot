@@ -29,18 +29,44 @@ document.addEventListener('DOMContentLoaded', () => {
             addMessage(text, true);
             messageInput.value = '';
 
-            // Simulate bot response after a delay
-            setTimeout(() => {
-                const responses = [
-                    "That sounds interesting. Tell me more.",
-                    "I understand. Take a deep breath.",
-                    "How does that make you feel?",
-                    "Remember, you are doing your best.",
-                    "I'm here to listen."
-                ];
-                const randomResponse = responses[Math.floor(Math.random() * responses.length)];
-                addMessage(randomResponse, false);
-            }, 1000);
+            // Show typing indicator
+            const typingIndicator = document.createElement('div');
+            typingIndicator.classList.add('message', 'bot-message', 'typing-indicator');
+            typingIndicator.innerHTML = `
+                <div class="message-content">
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                    <span class="dot"></span>
+                </div>
+            `;
+            messagesContainer.appendChild(typingIndicator);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            // Fetch response from backend
+            fetch('http://127.0.0.1:5000/chat', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ message: text })
+            })
+                .then(response => response.json())
+                .then(data => {
+                    // Remove typing indicator
+                    messagesContainer.removeChild(typingIndicator);
+
+                    // Add bot response
+                    if (data.response) {
+                        addMessage(data.response, false);
+                    } else {
+                        addMessage("I'm having trouble understanding right now. Please try again.", false);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    messagesContainer.removeChild(typingIndicator);
+                    addMessage("Sorry, I'm having trouble connecting to the server.", false);
+                });
         }
     }
 
