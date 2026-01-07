@@ -1,24 +1,19 @@
-# backend/app.py
-
-from flask import Flask, request, jsonify
 from model import classify_text
-from response_generator import generate_response
+from responses import generate_response
 
-app = Flask(__name__)
-
-@app.route("/chat", methods=["POST"])
 def chat():
-    data = request.get_json()
-    user_message = data.get("message", "")
+    print("Mental Health Chatbot (type 'exit' to quit)\n")
 
-    emotion, confidence = classify_text(user_message)
-    response = generate_response(emotion)
+    while True:
+        user_input = input("You: ")
+        if user_input.lower() == "exit":
+            print("Chatbot: Take care. You're not alone.")
+            break
 
-    return jsonify({
-        "emotion": emotion,
-        "confidence": confidence,
-        "response": response
-    })
+        emotion, confidence = classify_text(user_input)
+        reply = generate_response(emotion)
+
+        print(f"Chatbot ({emotion}, {confidence:.2f}): {reply}\n")
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    chat()
