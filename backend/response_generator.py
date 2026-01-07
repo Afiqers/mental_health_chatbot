@@ -19,11 +19,16 @@ RESPONSES = {
         "I understand. Is there one small thing you can take off your plate today?",
         " deep breath. You are doing the best you can."
     ],
-    "NEUTRAL": [
-        "Thank you for sharing. How can I support you today?",
-        "I'm here whenever you'd like to talk.",
-        "It's good to hear from you. What's on your mind?",
-        "I'm listening. Feel free to tell me more."
+    "NORMAL": [
+        "I'm glad to hear that! How has your day been otherwise?",
+        "That's great! It's always nice to check in. What have you been up to?",
+        "Good to hear! I'm here if you ever need to chat.",
+        "That sounds positive! Keep it up."
+    ],
+    "SUICIDAL": [
+        "I'm hearing that you're in a lot of pain, and I want you to be safe. Please reach out for help immediately.",
+        "You are not alone, and there is help available. Please contact a crisis helpline right now.",
+        "It sounds like you are going through a very difficult time. Please talk to a professional who can help you stay safe."
     ],
     "UNKNOWN": [
         "I'm here to listen. Please tell me more.",
@@ -32,9 +37,33 @@ RESPONSES = {
     ]
 }
 
-def generate_response(emotion: str) -> str:
+CRITICAL_RESOURCE_MESSAGE = (
+    "\n\nIf you are in immediate danger, please call your local emergency number or a crisis hotline:\n"
+    "- **Generic**: 999 (Malaysia)\n"
+    "- **Befrienders Worldwide**: befrienders.org\n"
+    "Please reach out to them—they are trained to help you."
+)
+
+def generate_response(emotion: str, confidence: float) -> str:
     """
-    Generate empathetic response based on emotion.
+    Generate empathetic response based on emotion and confidence score.
+    If confidence is low (< 0.6), asks for clarification.
     """
-    responses = RESPONSES.get(emotion, RESPONSES["UNKNOWN"])
-    return responses[0]
+    
+    # IMMEDIATE SAFETY CHECK
+    if emotion == "SUICIDAL":
+        import random
+        base_msg = random.choice(RESPONSES["SUICIDAL"])
+        return base_msg + CRITICAL_RESOURCE_MESSAGE
+
+    if confidence < 0.6:
+        return (
+            "I'm not completely sure how you're feeling, "
+            "but I'm here to listen. Could you tell me more about what's going on?"
+        )
+
+    # Get list of possible responses for the emotion
+    possible_responses = RESPONSES.get(emotion, RESPONSES["UNKNOWN"])
+    
+    import random
+    return random.choice(possible_responses)

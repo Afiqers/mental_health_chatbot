@@ -12,7 +12,7 @@ def chat():
     user_message = data.get("message", "")
 
     emotion, confidence = classify_text(user_message)
-    response = generate_response(emotion)
+    response = generate_response(emotion, confidence)
 
     return jsonify({
         "emotion": emotion,

@@ -4,7 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const messagesContainer = document.getElementById('messages-container');
 
     // Function to add a message to the chat
-    function addMessage(text, isUser = true) {
+    function addMessage(text, isUser = true, meta = null) {
         if (!text.trim()) return;
 
         const messageDiv = document.createElement('div');
@@ -16,6 +16,16 @@ document.addEventListener('DOMContentLoaded', () => {
         messageContent.textContent = text;
 
         messageDiv.appendChild(messageContent);
+
+        // Add metadata (emotion/confidence) if provided
+        if (meta && !isUser) {
+            const metaDiv = document.createElement('div');
+            metaDiv.classList.add('message-meta');
+            const confidencePercent = Math.round(meta.confidence * 100);
+            metaDiv.textContent = `Detected: ${meta.emotion} (${confidencePercent}%)`;
+            messageDiv.appendChild(metaDiv);
+        }
+
         messagesContainer.appendChild(messageDiv);
 
         // Scroll to bottom
@@ -55,9 +65,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     // Remove typing indicator
                     messagesContainer.removeChild(typingIndicator);
 
-                    // Add bot response
+                    // Add bot response with meta data
                     if (data.response) {
-                        addMessage(data.response, false);
+                        addMessage(data.response, false, {
+                            emotion: data.emotion,
+                            confidence: data.confidence
+                        });
                     } else {
                         addMessage("I'm having trouble understanding right now. Please try again.", false);
                     }
