@@ -34,6 +34,18 @@ RESPONSES = {
         "I'm here to listen. Please tell me more.",
         "I'm not sure I fully understand, but I want to support you. Can you say more?",
         "I'm listening."
+    ],
+    "GREETING": [
+        "Hello! It's good to see you. How are you feeling today?",
+        "Hi there! I'm here to listen and support you.",
+        "Welcome. How can I help you right now?",
+        "Hello. I'm ready to listen if you'd like to share."
+    ],
+    "FAREWELL": [
+        "Take care of yourself. I'm here whenever you need to talk.",
+        "Goodbye for now. Remember to be kind to yourself.",
+        "You're welcome. Wishing you a peaceful day.",
+        "See you later. Don't hesitate to return if you need support."
     ]
 }
 
@@ -66,4 +78,14 @@ def generate_response(emotion: str, confidence: float) -> str:
     possible_responses = RESPONSES.get(emotion, RESPONSES["UNKNOWN"])
     
     import random
-    return random.choice(possible_responses)
+    selected_response = random.choice(possible_responses)
+
+    # --- LLM REPHRASING ---
+    # Only rephrase if safe and confidence is reasonable.
+    # Skip for SUICIDAL (already handled above) and low confidence.
+    # Also skip if emotion is UNKNOWN to avoid hallucinating meaning.
+    if emotion not in ["SUICIDAL", "UNKNOWN"] and confidence >= 0.7:
+        from llm_rephraser import rephrase_response
+        return rephrase_response(selected_response, emotion)
+    
+    return selected_response

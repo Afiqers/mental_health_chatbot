@@ -10,10 +10,13 @@ CORS(app)
 def chat():
     data = request.get_json()
     user_message = data.get("message", "")
+    
+    if not user_message:
+        return jsonify({"error": "No message provided"}), 400
 
     emotion, confidence = classify_text(user_message)
     response = generate_response(emotion, confidence)
-
+    
     return jsonify({
         "emotion": emotion,
         "confidence": confidence,

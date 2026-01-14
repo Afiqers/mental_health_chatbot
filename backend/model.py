@@ -30,6 +30,26 @@ def classify_text(text: str):
     if not model or not tokenizer:
         return "UNKNOWN", 0.0
 
+    # --- RULE-BASED INTENTS (GREETING/FAREWELL) ---
+    text_lower = text.lower().strip()
+    
+    # Emotional keywords to ignore for simple greetings (if these are present, let BERT/Keyword fallback handle it)
+    emotional_keywords = ["sad", "depressed", "anxious", "scared", "worried", "kill", "suicide", "die", "help", "pain"]
+
+    # Check for Greetings (only if short AND no emotional keywords)
+    greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings"]
+    
+    is_greeting = any(text_lower.startswith(g) for g in greetings)
+    has_emotion = any(w in text_lower for w in emotional_keywords)
+    
+    if len(text.split()) <= 5 and is_greeting and not has_emotion:
+         return "GREETING", 1.0
+
+    # Check for Farewells
+    farewells = ["bye", "goodbye", "see you", "thank you", "thanks", "tq", "good night"]
+    if len(text.split()) <= 5 and any(text_lower.startswith(f) for f in farewells):
+        return "FAREWELL", 1.0
+
     # Tokenize
     inputs = tokenizer(
         text, 
