@@ -59,4 +59,22 @@ def classify_text(text: str):
     # Map to Label
     emotion = LABEL_MAP.get(prediction_idx, "UNKNOWN")
 
+    # --- KEYWORD FALLBACK ---
+    # The model sometimes struggles with very short or direct phrases (e.g., "i am sad").
+    # We add a safety check here to override "NORMAL" if strong negative keywords are present.
+    if emotion == "NORMAL":
+        text_lower = text.lower()
+        if any(w in text_lower for w in ["sad", "depressed", "hopeless", "unhappy", "cry"]):
+            # Override to Depression with high confidence
+            emotion = "DEPRESSION"
+            confidence = 0.85
+        elif any(w in text_lower for w in ["anxious", "scared", "worried", "nervous", "panic"]):
+            # Override to Anxiety with high confidence
+            emotion = "ANXIETY"
+            confidence = 0.85
+        elif any(w in text_lower for w in ["kill", "suicide", "end my life", "die"]):
+            # Override to Suicidal with high confidence (Safety First)
+            emotion = "SUICIDAL"
+            confidence = 0.95
+
     return emotion, confidence
