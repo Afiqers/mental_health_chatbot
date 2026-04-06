@@ -34,10 +34,16 @@ def classify_text(text: str):
     text_lower = text.lower().strip()
     
     # Emotional keywords to ignore for simple greetings (if these are present, let BERT/Keyword fallback handle it)
-    emotional_keywords = ["sad", "depressed", "anxious", "scared", "worried", "kill", "suicide", "die", "help", "pain"]
+    emotional_keywords = [
+        "sad", "depressed", "anxious", "scared", "worried", "kill", "suicide", "die", "help", "pain",
+        "sedih", "murung", "risau", "takut", "bimbang", "bunuh diri", "mati", "tolong", "sakit", "sunyi"
+    ]
 
     # Check for Greetings (only if short AND no emotional keywords)
-    greetings = ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings"]
+    greetings = [
+        "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
+        "hai", "salam", "selamat pagi", "selamat petang", "selamat malam"
+    ]
     
     is_greeting = any(text_lower.startswith(g) for g in greetings)
     has_emotion = any(w in text_lower for w in emotional_keywords)
@@ -46,7 +52,10 @@ def classify_text(text: str):
          return "GREETING", 1.0
 
     # Check for Farewells
-    farewells = ["bye", "goodbye", "see you", "thank you", "thanks", "tq", "good night"]
+    farewells = [
+        "bye", "goodbye", "see you", "thank you", "thanks", "tq", "good night",
+        "selamat tinggal", "jumpa lagi", "terima kasih"
+    ]
     if len(text.split()) <= 5 and any(text_lower.startswith(f) for f in farewells):
         return "FAREWELL", 1.0
 
@@ -84,15 +93,15 @@ def classify_text(text: str):
     # We add a safety check here to override "NORMAL" if strong negative keywords are present.
     if emotion == "NORMAL":
         text_lower = text.lower()
-        if any(w in text_lower for w in ["sad", "depressed", "hopeless", "unhappy", "cry"]):
+        if any(w in text_lower for w in ["sad", "depressed", "hopeless", "unhappy", "cry", "sedih", "murung", "putus asa", "nangis"]):
             # Override to Depression with high confidence
             emotion = "DEPRESSION"
             confidence = 0.85
-        elif any(w in text_lower for w in ["anxious", "scared", "worried", "nervous", "panic"]):
+        elif any(w in text_lower for w in ["anxious", "scared", "worried", "nervous", "panic", "risau", "takut", "bimbang", "gugup", "panik"]):
             # Override to Anxiety with high confidence
             emotion = "ANXIETY"
             confidence = 0.85
-        elif any(w in text_lower for w in ["kill", "suicide", "end my life", "die"]):
+        elif any(w in text_lower for w in ["kill", "suicide", "end my life", "die", "bunuh diri", "mati", "tamatkan nyawa"]):
             # Override to Suicidal with high confidence (Safety First)
             emotion = "SUICIDAL"
             confidence = 0.95
