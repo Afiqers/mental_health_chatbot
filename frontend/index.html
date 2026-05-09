@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Qbot</title>
+    <title>Chatbot</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
@@ -18,13 +18,22 @@
         <aside class="sidebar">
             <div class="logo-area">
                 <i class="fa-solid fa-spa"></i>
-                <h1>Qbot</h1>
+                <h1>Chatbot</h1>
+            </div>
+
+            <div class="history-section">
+                <h2>Chat History</h2>
+                <ul class="history-list">
+                    <li class="active-chat"><i class="fa-regular fa-message"></i> Welcome Chat</li>
+                    <li><i class="fa-regular fa-message"></i> Stress Relief</li>
+                    <li><i class="fa-regular fa-message"></i> Meditation Tips</li>
+                </ul>
             </div>
 
             <button class="new-chat-btn" id="new-chat-btn">
                 <i class="fa-solid fa-plus"></i> New Chat
             </button>
-            
+
             <div style="flex-grow: 1;"></div>
 
             <!-- Auth Section -->
@@ -32,7 +41,7 @@
                 <button class="auth-btn" id="login-modal-btn">Log In</button>
                 <button class="auth-btn" id="register-modal-btn">Sign Up</button>
             </div>
-            
+
             <div class="user-profile hidden" id="user-profile">
                 <div class="avatar"><i class="fa-solid fa-user"></i></div>
                 <span id="username-display">User</span>
@@ -43,12 +52,17 @@
         <!-- Main Chat Area -->
         <main class="chat-area">
             <header class="chat-header">
-                <h2>Welcome to Qbot</h2>
+                <h2>Welcome to Chatbot</h2>
                 <p>Your safe space to talk and relax.</p>
             </header>
 
             <div class="messages-container" id="messages-container">
-                <!-- Messages load dynamically -->
+                <!-- Example Response -->
+                <div class="message bot-message">
+                    <div class="message-content">
+                        Hello! How are you feeling today?
+                    </div>
+                </div>
             </div>
 
             <div class="input-area">

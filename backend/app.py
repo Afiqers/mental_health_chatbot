@@ -2,10 +2,6 @@ import os
 from datetime import datetime
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from flask_sqlalchemy import SQLAlchemy
-from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
-
 from model import classify_text
 from response_generator import generate_response
 
@@ -100,34 +96,24 @@ def get_history():
 @jwt_required(optional=True)
 def chat():
     data = request.get_json()
-    user_message = data.get("message", "")
-    is_first_message = data.get("isFirstMessage", False)
-    context_data = data.get("context", None)
-    last_topic = data.get("lastTopic", None)
-    
-    current_user_id = get_jwt_identity()
-    
-    if not user_message and not context_data and not last_topic:
-        return jsonify({"error": "No message or context provided"}), 400
+    user_message = data.get("message", "").strip()
 
-    emotion, confidence = classify_text(user_message) if user_message else ("UNKNOWN", 0.0)
-    response = generate_response(user_message, emotion, confidence, is_first_message, context_data, last_topic)
-    
-    if current_user_id:
-        if user_message:
-            user_msg_db = ChatMessage(user_id=current_user_id, role="user", content=user_message, emotion=emotion, confidence=confidence)
-            db.session.add(user_msg_db)
-            
-        bot_msg_db = ChatMessage(user_id=current_user_id, role="bot", content=response)
-        db.session.add(bot_msg_db)
-        db.session.commit()
-    
+    if not user_message:
+        return jsonify({"error": "Empty message"}), 400
+
+    emotion, confidence, is_high_risk = classify_text(user_message)
+    response = generate_response(emotion)
+
     return jsonify({
         "emotion": emotion,
         "confidence": confidence,
-        "response": response,
-        "logged_in": bool(current_user_id)
+        "is_high_risk": is_high_risk,
+        "response": response
     })
+
+@app.route("/health", methods=["GET"])
+def health():
+    return jsonify({"status": "ok"})
 
 if __name__ == "__main__":
     app.run(debug=True)

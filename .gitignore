@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+venv/
+.env
+
+# Models
+backend/suicide_model/
+backend/local_model/
+*.safetensors
+*.bin
+
+# Large Datasets
+data/Suicide_Detection.csv
+data/mental_health_unbalanced.csv
+data/malay_dataset_translated.csv
+
+# SQLite DBs
+*.db
+*.sqlite3
+data/*.csv  

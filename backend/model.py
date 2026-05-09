@@ -1,109 +1,106 @@
 # backend/model.py
 
+import os
 import torch
 import torch.nn.functional as F
-from transformers import AutoTokenizer, AutoModelForSequenceClassification
+from transformers import pipeline, AutoTokenizer, AutoModelForSequenceClassification
 from label_map import LABEL_MAP
 
-# 1. Load Model and Tokenizer
-MODEL_NAME = "ourafla/mental-health-bert-finetuned"
-try:
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
-except Exception as e:
-    print(f"Error loading model: {e}")
-    # Fallback or exit? For now just print error.
-    tokenizer = None
-    model = None
+# ──────────────────────────────────────────────────────────────
+#  MODEL 1: Emotion classifier (local model if available)
+# ──────────────────────────────────────────────────────────────
+LOCAL_MODEL_PATH = os.path.join(os.path.dirname(__file__), "local_model")
+if os.path.isdir(LOCAL_MODEL_PATH):
+    print(f"[INFO] Loading local emotion model from: {LOCAL_MODEL_PATH}")
+    emotion_classifier = pipeline(
+        "text-classification",
+        model=LOCAL_MODEL_PATH,
+        top_k=None
+    )
+else:
+    print("[INFO] Loading default emotion model (ourafla)...")
+    emotion_classifier = pipeline(
+        "text-classification",
+        model="ourafla/mental-health-bert-finetuned",
+        top_k=None
+    )
 
-# 2. Set Device
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-if model:
-    model.to(device)
-    model.eval()
+# ──────────────────────────────────────────────────────────────
+#  MODEL 2: Suicide detection (DistilBERT — called directly,
+#  NOT via pipeline, to avoid token_type_ids incompatibility)
+# ──────────────────────────────────────────────────────────────
+SUICIDE_MODEL_PATH = os.environ.get(
+    "SUICIDE_MODEL_PATH",
+    os.path.join(os.path.dirname(__file__), "suicide_model")
+)
+
+_suicide_tokenizer = None
+_suicide_model     = None
+
+if os.path.isdir(SUICIDE_MODEL_PATH):
+    print(f"[INFO] Loading suicide detection model from: {SUICIDE_MODEL_PATH}")
+    _suicide_tokenizer = AutoTokenizer.from_pretrained(SUICIDE_MODEL_PATH)
+    _suicide_model     = AutoModelForSequenceClassification.from_pretrained(SUICIDE_MODEL_PATH)
+    _suicide_model.eval()
+    print("[INFO] Suicide detection model loaded successfully.")
+else:
+    print("[WARN] Suicide model not found. Run training first (train_colab.py).")
+    print(f"       Expected path: {SUICIDE_MODEL_PATH}")
+
+
+def _run_suicide_classifier(text: str):
+    """
+    Run DistilBERT suicide classifier without pipeline to avoid
+    the token_type_ids incompatibility issue.
+    Returns (label, score) where label is 'suicide' or 'non-suicide'.
+    """
+    inputs = _suicide_tokenizer(
+        text,
+        return_tensors="pt",
+        truncation=True,
+        max_length=256,
+        padding=True,
+    )
+    # DistilBERT does NOT use token_type_ids — remove if present
+    inputs.pop("token_type_ids", None)
+
+    with torch.no_grad():
+        logits = _suicide_model(**inputs).logits
+
+    probs      = F.softmax(logits, dim=-1)[0]
+    pred_idx   = probs.argmax().item()
+    pred_label = _suicide_model.config.id2label[pred_idx]
+    pred_score = probs[pred_idx].item()
+    return pred_label, round(pred_score, 3)
+
 
 def classify_text(text: str):
     """
-    Classify input text using explicit PyTorch inference.
-    Returns: (emotion, confidence)
+    Classify input text using dual-model pipeline:
+      1. Suicide detector (if available) — high priority
+      2. Emotion classifier — always runs
+
+    Returns: (emotion, confidence, is_high_risk)
     """
-    if not model or not tokenizer:
-        return "UNKNOWN", 0.0
+    is_high_risk       = False
+    suicide_confidence = 0.0
 
-    # --- RULE-BASED INTENTS (GREETING/FAREWELL) ---
-    text_lower = text.lower().strip()
-    
-    # Emotional keywords to ignore for simple greetings (if these are present, let BERT/Keyword fallback handle it)
-    emotional_keywords = [
-        "sad", "depressed", "anxious", "scared", "worried", "kill", "suicide", "die", "help", "pain",
-        "sedih", "murung", "risau", "takut", "bimbang", "bunuh diri", "mati", "tolong", "sakit", "sunyi"
-    ]
+    # ── Step 1: Check for suicide / self-harm risk ───────────
+    if _suicide_model is not None:
+        label, score = _run_suicide_classifier(text)
+        if label == "suicide" and score >= 0.65:
+            is_high_risk       = True
+            suicide_confidence = score
 
-    # Check for Greetings (only if short AND no emotional keywords)
-    greetings = [
-        "hi", "hello", "hey", "good morning", "good afternoon", "good evening", "greetings",
-        "hai", "salam", "selamat pagi", "selamat petang", "selamat malam"
-    ]
-    
-    is_greeting = any(text_lower.startswith(g) for g in greetings)
-    has_emotion = any(w in text_lower for w in emotional_keywords)
-    
-    if len(text.split()) <= 5 and is_greeting and not has_emotion:
-         return "GREETING", 1.0
+    # ── Step 2: Run emotion classifier ───────────────────────
+    emotion_results = emotion_classifier(text)[0]
+    best = max(emotion_results, key=lambda x: x["score"])
+    emotion     = LABEL_MAP.get(best["label"], "UNKNOWN")
+    confidence  = round(best["score"], 3)
 
-    # Check for Farewells
-    farewells = [
-        "bye", "goodbye", "see you", "thank you", "thanks", "tq", "good night",
-        "selamat tinggal", "jumpa lagi", "terima kasih"
-    ]
-    if len(text.split()) <= 5 and any(text_lower.startswith(f) for f in farewells):
-        return "FAREWELL", 1.0
+    # ── Step 3: Override emotion if high risk ─────────────────
+    if is_high_risk:
+        emotion    = "HIGH_RISK"
+        confidence = suicide_confidence
 
-    # Tokenize
-    inputs = tokenizer(
-        text, 
-        return_tensors="pt", 
-        padding=True, 
-        truncation=True, 
-        max_length=128
-    )
-    
-    # Move inputs to device
-    inputs = {k: v.to(device) for k, v in inputs.items()}
-
-    # Inference
-    with torch.no_grad():
-        outputs = model(**inputs)
-        logits = outputs.logits
-        # Calculate probabilities
-        probs = F.softmax(logits, dim=-1)
-        
-        # Get best prediction
-        confidence, prediction_idx = torch.max(probs, dim=-1)
-        
-        # Extract values
-        prediction_idx = prediction_idx.item()
-        confidence = confidence.item()
-
-    # Map to Label
-    emotion = LABEL_MAP.get(prediction_idx, "UNKNOWN")
-
-    # --- KEYWORD FALLBACK ---
-    # The model sometimes struggles with very short or direct phrases (e.g., "i am sad").
-    # We add a safety check here to override "NORMAL" if strong negative keywords are present.
-    if emotion == "NORMAL":
-        text_lower = text.lower()
-        if any(w in text_lower for w in ["sad", "depressed", "hopeless", "unhappy", "cry", "sedih", "murung", "putus asa", "nangis"]):
-            # Override to Depression with high confidence
-            emotion = "DEPRESSION"
-            confidence = 0.85
-        elif any(w in text_lower for w in ["anxious", "scared", "worried", "nervous", "panic", "risau", "takut", "bimbang", "gugup", "panik"]):
-            # Override to Anxiety with high confidence
-            emotion = "ANXIETY"
-            confidence = 0.85
-        elif any(w in text_lower for w in ["kill", "suicide", "end my life", "die", "bunuh diri", "mati", "tamatkan nyawa"]):
-            # Override to Suicidal with high confidence (Safety First)
-            emotion = "SUICIDAL"
-            confidence = 0.95
-
-    return emotion, confidence
+    return emotion, confidence, is_high_risk

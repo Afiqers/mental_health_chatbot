@@ -31,23 +31,21 @@ RESPONSES = {
         "Let's focus only on the very next step. What is one small thing you have absolute control over right now?",
         "It's completely normal to feel overwhelmed when there's so much going on. Please remember to hydrate and be kind to your body today."
     ],
-    "NORMAL": [
-        "I'm glad to hear that! How has your day been otherwise?",
-        "That's great to hear! It's always nice to check in. What have you been up to?",
-        "Good to hear! I'm here if you ever need to chat about anything, big or small.",
-        "That sounds positive! Keep it up. Is there anything else on your mind today?",
-        "I appreciate you stopping by. Would you like to do a quick mood check-in or just chat?",
-        "It sounds like things are going okay! I'm always here if you want to share a story or let off some steam.",
-        "Awesome! I hope the rest of your day goes just as smoothly. Remember to take breaks!",
-        "That's wonderful. Remember to enjoy the calm moments. I'm right here if you need me later."
-    ],
     "SUICIDAL": [
-        "I'm hearing that you're in a lot of pain, and I want you to be safe. Please reach out for help immediately.",
-        "You are not alone, and there is help available. Please contact a crisis helpline right now.",
-        "It sounds like you are going through a very difficult time. Please talk to a professional who can help you stay safe.",
-        "Your pain is real, but please stay. There are people who want to support you through this exact moment.",
-        "Please don't face this alone. Call or text an emergency helpline—they want to listen and help you stay safe.",
-        "I care about you, and I want you to stay safe right now. Please tell someone around you how you are feeling."
+        "Please know that you are not alone and things can get better. Please contact Talian Kasih at 15999 or Befrienders KL at 03-76272929 for immediate support.",
+        "Your life is incredibly valuable. Please reach out to someone who can help right now. Call Talian Kasih at 15999."
+    ],
+    "HIGH_RISK": [
+        "Please know that you are not alone and things can get better. Please contact Talian Kasih at 15999 or Befrienders KL at 03-76272929 for immediate support.",
+        "Your life is incredibly valuable. Please reach out to someone who can help right now. Call Talian Kasih at 15999."
+    ],
+    "NORMAL": [
+        "Thank you for sharing. How can I support you today?",
+        "I'm here whenever you'd like to talk."
+    ],
+    "NEUTRAL": [
+        "Thank you for sharing. How can I support you today?",
+        "I'm here whenever you'd like to talk."
     ],
     "UNKNOWN": [
         "I'm not sure I fully understand, but I want to support you. Can you tell me a bit more?",
