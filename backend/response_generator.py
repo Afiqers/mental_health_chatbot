@@ -84,12 +84,14 @@ CRITICAL_RESOURCE_MESSAGE = (
     "Please reach out to them—they are trained to help you."
 )
 
-def generate_response(user_message: str, emotion: str, confidence: float, is_first_message: bool = False, context: str = None, last_topic: str = None) -> str:
+def generate_response(user_message: str, emotion: str, confidence: float, is_first_message: bool = False, history: list = None) -> str:
     """
     Generate empathetic response based on emotion and confidence score.
+    history: list of {"role": "user"|"bot", "content": "..."} dicts (last N turns).
     If confidence is low (< 0.6), asks for clarification.
     """
-    
+    history = history or []
+
     # IMMEDIATE SAFETY CHECK
     if emotion == "SUICIDAL":
         final_response = "I hear how much pain you are in. You are not alone. Please reach out to these professionals who can stay on the line with you right now.\n" + CRITICAL_RESOURCE_MESSAGE
@@ -105,20 +107,19 @@ def generate_response(user_message: str, emotion: str, confidence: float, is_fir
 
     # Get list of possible responses for the emotion
     possible_responses = RESPONSES.get(emotion, RESPONSES["UNKNOWN"])
-    
+
     import random
     selected_response = random.choice(possible_responses)
 
-    # Only rephrase if safe and confidence is reasonable.
-    # Skip for SUICIDAL (already handled above) and low confidence.
-    # Also skip if emotion is UNKNOWN to avoid hallucinating meaning.
-    if emotion not in ["UNKNOWN"] and confidence >= 0.7:
+    # Rephrase with LLM if confidence is reasonable
+    # Skip rephrasing for structural/conversational intents so the LLM doesn't hallucinate "You mentioned feeling GREETING"
+    if emotion not in ["UNKNOWN", "GREETING", "FAREWELL"] and confidence >= 0.7:
         from llm_rephraser import rephrase_response
-        final_response = rephrase_response(selected_response, emotion, user_message)
+        final_response = rephrase_response(selected_response, emotion, user_message, history=history)
     else:
         final_response = selected_response
 
     if is_first_message:
         final_response = "I am an AI, not a licensed therapist or doctor. If you are in immediate danger, please reach out to emergency services.\n\n" + final_response
-        
+
     return final_response

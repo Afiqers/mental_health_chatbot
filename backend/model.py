@@ -9,7 +9,9 @@ from label_map import LABEL_MAP
 # ──────────────────────────────────────────────────────────────
 #  MODEL 1: Emotion classifier (local model if available)
 # ──────────────────────────────────────────────────────────────
-LOCAL_MODEL_PATH = os.path.join(os.path.dirname(__file__), "local_model")
+# local_model files are saved inside local_model/local_model by train_local.py
+_LOCAL_BASE = os.path.join(os.path.dirname(__file__), "local_model")
+LOCAL_MODEL_PATH = os.path.join(_LOCAL_BASE, "local_model") if os.path.isdir(os.path.join(_LOCAL_BASE, "local_model")) else _LOCAL_BASE
 if os.path.isdir(LOCAL_MODEL_PATH):
     print(f"[INFO] Loading local emotion model from: {LOCAL_MODEL_PATH}")
     emotion_classifier = pipeline(
@@ -25,82 +27,73 @@ else:
         top_k=None
     )
 
-# ──────────────────────────────────────────────────────────────
-#  MODEL 2: Suicide detection (DistilBERT — called directly,
-#  NOT via pipeline, to avoid token_type_ids incompatibility)
-# ──────────────────────────────────────────────────────────────
-SUICIDE_MODEL_PATH = os.environ.get(
-    "SUICIDE_MODEL_PATH",
-    os.path.join(os.path.dirname(__file__), "suicide_model")
-)
+_GREETINGS = {
+    "hi", "hello", "hey", "hye", "helo", "hai",
+    "good morning", "good afternoon", "good evening",
+    "selamat pagi", "selamat petang", "selamat malam"
+}
 
-_suicide_tokenizer = None
-_suicide_model     = None
+_FAREWELLS = {
+    "bye", "goodbye", "good bye", "see you", "see ya", "tata", "baibai"
+}
 
-if os.path.isdir(SUICIDE_MODEL_PATH):
-    print(f"[INFO] Loading suicide detection model from: {SUICIDE_MODEL_PATH}")
-    _suicide_tokenizer = AutoTokenizer.from_pretrained(SUICIDE_MODEL_PATH)
-    _suicide_model     = AutoModelForSequenceClassification.from_pretrained(SUICIDE_MODEL_PATH)
-    _suicide_model.eval()
-    print("[INFO] Suicide detection model loaded successfully.")
-else:
-    print("[WARN] Suicide model not found. Run training first (train_colab.py).")
-    print(f"       Expected path: {SUICIDE_MODEL_PATH}")
-
-
-def _run_suicide_classifier(text: str):
-    """
-    Run DistilBERT suicide classifier without pipeline to avoid
-    the token_type_ids incompatibility issue.
-    Returns (label, score) where label is 'suicide' or 'non-suicide'.
-    """
-    inputs = _suicide_tokenizer(
-        text,
-        return_tensors="pt",
-        truncation=True,
-        max_length=256,
-        padding=True,
-    )
-    # DistilBERT does NOT use token_type_ids — remove if present
-    inputs.pop("token_type_ids", None)
-
-    with torch.no_grad():
-        logits = _suicide_model(**inputs).logits
-
-    probs      = F.softmax(logits, dim=-1)[0]
-    pred_idx   = probs.argmax().item()
-    pred_label = _suicide_model.config.id2label[pred_idx]
-    pred_score = probs[pred_idx].item()
-    return pred_label, round(pred_score, 3)
-
+# The fine-tuned model struggles with very short 2-3 word phrases (like "i am sad")
+# because it was trained on longer, complex sentences. We use a fallback for obvious ones.
+_QUICK_EMOTIONS = {
+    "i am sad": "DEPRESSION",
+    "i'm sad": "DEPRESSION",
+    "im sad": "DEPRESSION",
+    "saya sedih": "DEPRESSION",
+    "aku sedih": "DEPRESSION",
+    "i feel sad": "DEPRESSION",
+    
+    "i am anxious": "ANXIETY",
+    "i'm anxious": "ANXIETY",
+    "im anxious": "ANXIETY",
+    "saya gelisah": "ANXIETY",
+    "i feel anxious": "ANXIETY",
+    "saya risau": "ANXIETY",
+    
+    "i want to die": "SUICIDAL",
+    "i wanna die": "SUICIDAL",
+    "saya nak mati": "SUICIDAL",
+    "kill myself": "SUICIDAL",
+    "bunuh diri": "SUICIDAL"
+}
 
 def classify_text(text: str):
     """
-    Classify input text using dual-model pipeline:
-      1. Suicide detector (if available) — high priority
-      2. Emotion classifier — always runs
+    Classify input text using the primary emotion classifier.
+    The local model is a 4-class model (ANXIETY, DEPRESSION, SUICIDAL, NORMAL).
+    Short greetings and obvious keywords are caught immediately.
 
     Returns: (emotion, confidence, is_high_risk)
     """
-    is_high_risk       = False
-    suicide_confidence = 0.0
+    normalized_text = text.strip().lower()
+    
+    # ── Quick checks for greetings/farewells ──
+    if normalized_text in _GREETINGS:
+        return "GREETING", 1.0, False
+    if normalized_text in _FAREWELLS:
+        return "FAREWELL", 1.0, False
 
-    # ── Step 1: Check for suicide / self-harm risk ───────────
-    if _suicide_model is not None:
-        label, score = _run_suicide_classifier(text)
-        if label == "suicide" and score >= 0.65:
-            is_high_risk       = True
-            suicide_confidence = score
+    # ── Quick checks for obvious short phrases ──
+    # If the exact phrase is in our dictionary, or if it's very short and contains a critical keyword
+    if normalized_text in _QUICK_EMOTIONS:
+        emotion = _QUICK_EMOTIONS[normalized_text]
+        return emotion, 0.95, (emotion == "SUICIDAL")
+        
+    for phrase, emotion in _QUICK_EMOTIONS.items():
+        if len(normalized_text.split()) <= 5 and phrase in normalized_text:
+            return emotion, 0.90, (emotion == "SUICIDAL")
 
-    # ── Step 2: Run emotion classifier ───────────────────────
     emotion_results = emotion_classifier(text)[0]
     best = max(emotion_results, key=lambda x: x["score"])
-    emotion     = LABEL_MAP.get(best["label"], "UNKNOWN")
-    confidence  = round(best["score"], 3)
-
-    # ── Step 3: Override emotion if high risk ─────────────────
-    if is_high_risk:
-        emotion    = "HIGH_RISK"
-        confidence = suicide_confidence
+    
+    emotion = LABEL_MAP.get(best["label"], "UNKNOWN")
+    confidence = round(best["score"], 3)
+    
+    is_high_risk = (emotion == "SUICIDAL")
 
     return emotion, confidence, is_high_risk
+

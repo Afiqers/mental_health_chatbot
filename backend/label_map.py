@@ -5,9 +5,9 @@ LABEL_MAP = {
     # If using the original huggingface model:
     "LABEL_0": "ANXIETY",
     "LABEL_1": "DEPRESSION",
-    "LABEL_2": "SUICIDAL", # The dataset has Suicidal as class 2
+    "LABEL_2": "SUICIDAL",
     "LABEL_3": "NORMAL",
-    
+
     # If using our local_model (which explicitly sets id2label):
     "Anxiety": "ANXIETY",
     "Depression": "DEPRESSION",

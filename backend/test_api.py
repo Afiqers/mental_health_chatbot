@@ -31,8 +31,8 @@ else:
 # ── Test cases ───────────────────────────────────────────────
 test_cases = [
     ("I'm feeling really anxious and can't calm down",          "ANXIETY"),
-    ("Everything feels hopeless, I don't see a point anymore",  "DEPRESSION / HIGH_RISK"),
-    ("I want to kill myself, I can't take it anymore",          "HIGH_RISK"),
+    ("Everything feels hopeless, I don't see a point anymore",  "DEPRESSION / SUICIDAL"),
+    ("I want to kill myself, I can't take it anymore",          "SUICIDAL"),
     ("I had a good day today, feeling okay",                    "NORMAL"),
     ("saya rasa sedih dan tidak berdaya",                       "DEPRESSION (Malay)"),
 ]
