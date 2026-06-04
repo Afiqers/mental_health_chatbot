@@ -78,9 +78,8 @@ RESPONSES = {
 }
 
 CRITICAL_RESOURCE_MESSAGE = (
-    "\n\nIf you are in immediate danger, please call your local emergency number or a crisis hotline:\n"
-    "- **Generic**: 999 (Malaysia)\n"
-    "- **Befrienders Worldwide**: befrienders.org\n"
+    "If you are in immediate danger, please call your local emergency number or a crisis hotline:\n"
+    "Please contact **Talian Kasih** at **15999** or **Befrienders KL** at **03-76272929** for immediate support."
     "Please reach out to them—they are trained to help you."
 )
 
@@ -97,13 +96,21 @@ def generate_response(user_message: str, emotion: str, confidence: float, is_fir
         final_response = "I hear how much pain you are in. You are not alone. Please reach out to these professionals who can stay on the line with you right now.\n" + CRITICAL_RESOURCE_MESSAGE
         if is_first_message:
             final_response = "I am an AI, not a licensed therapist or doctor. If you are in immediate danger, please reach out to emergency services.\n\n" + final_response
+        # Translate to Malay if needed
+        from llm_rephraser import rephrase_response, detect_language
+        if detect_language(user_message) == "Malay":
+            final_response = rephrase_response(final_response, emotion, user_message, history=history)
         return final_response
 
+    from llm_rephraser import rephrase_response, detect_language
     if confidence < 0.6 and user_message:
-        return (
+        fallback = (
             "I'm not completely sure how you're feeling, "
             "but I'm here to listen. Could you tell me more about what's going on?"
         )
+        if detect_language(user_message) == "Malay":
+            return rephrase_response(fallback, "UNKNOWN", user_message, history=history)
+        return fallback
 
     # Get list of possible responses for the emotion
     possible_responses = RESPONSES.get(emotion, RESPONSES["UNKNOWN"])
@@ -111,10 +118,12 @@ def generate_response(user_message: str, emotion: str, confidence: float, is_fir
     import random
     selected_response = random.choice(possible_responses)
 
-    # Rephrase with LLM if confidence is reasonable
-    # Skip rephrasing for structural/conversational intents so the LLM doesn't hallucinate "You mentioned feeling GREETING"
-    if emotion not in ["UNKNOWN", "GREETING", "FAREWELL"] and confidence >= 0.7:
-        from llm_rephraser import rephrase_response
+    # Rephrase with LLM if confidence is reasonable, or if user is writing in Malay
+    # (so that GREETING/FAREWELL/UNKNOWN always get translated for Malay users)
+    from llm_rephraser import rephrase_response, detect_language
+    user_is_malay = detect_language(user_message) == "Malay"
+
+    if (emotion not in ["UNKNOWN", "GREETING", "FAREWELL"] and confidence >= 0.7) or user_is_malay:
         final_response = rephrase_response(selected_response, emotion, user_message, history=history)
     else:
         final_response = selected_response

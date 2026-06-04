@@ -9,6 +9,7 @@ venv/
 # Models
 backend/suicide_model/
 backend/local_model/
+backend/local_model_backup/
 *.safetensors
 *.bin
 

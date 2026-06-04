@@ -1,41 +1,47 @@
-import os
-from flask import Flask, request, jsonify
+# backend/app.py
+"""Mindbot backend — application entry point.
+
+Run from the /backend directory:   python app.py
+"""
+
+from flask import Flask, jsonify
 from flask_cors import CORS
-from model import classify_text
-from response_generator import generate_response
+from flask_bcrypt import Bcrypt
+from flask_jwt_extended import JWTManager
 
-app = Flask(__name__)
-CORS(app)
+from config import Config
+from database import db
+from auth import auth_bp, init_auth
+from routes_chat import chat_bp
+from routes_analytics import analytics_bp
 
-# --- Chat Endpoint ---
-@app.route("/chat", methods=["POST"])
-def chat():
-    data = request.get_json()
-    user_message = data.get("message", "").strip()
-    # Last N turns: [{"role": "user"|"bot", "content": "..."}]
-    history = data.get("history", [])
 
-    if not user_message:
-        return jsonify({"error": "Empty message"}), 400
+def create_app(config_class=Config):
+    app = Flask(__name__)
+    app.config.from_object(config_class)
 
-    emotion, confidence, is_high_risk = classify_text(user_message)
-    response = generate_response(
-        user_message=user_message,
-        emotion=emotion,
-        confidence=confidence,
-        history=history
-    )
+    CORS(app)
+    db.init_app(app)
+    bcrypt = Bcrypt(app)
+    JWTManager(app)
+    init_auth(bcrypt)
 
-    return jsonify({
-        "emotion": emotion,
-        "confidence": confidence,
-        "is_high_risk": is_high_risk,
-        "response": response
-    })
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(chat_bp)
+    app.register_blueprint(analytics_bp)
 
-@app.route("/health", methods=["GET"])
-def health():
-    return jsonify({"status": "ok"})
+    @app.route("/health", methods=["GET"])
+    def health():
+        return jsonify({"status": "ok"})
+
+    with app.app_context():
+        db.create_all()
+
+    return app
+
+
+app = create_app()
+
 
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(debug=True, port=5000)

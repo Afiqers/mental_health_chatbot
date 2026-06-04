@@ -4,16 +4,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mindbot</title>
+    <title>Mindbot — Mental Health Companion</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
-    <div class="main-container">
+    <!-- ───────────── AUTH VIEW ───────────── -->
+    <div id="auth-view" class="auth-view">
+        <div class="auth-card">
+            <div class="auth-brand">
+                <i class="fa-solid fa-spa"></i>
+                <h1>Mindbot</h1>
+                <p>Your safe space to talk, reflect and track how you feel.</p>
+            </div>
+
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="login">Log in</button>
+                <button class="auth-tab" data-tab="register">Sign up</button>
+            </div>
+
+            <form id="auth-form" class="auth-form" autocomplete="off">
+                <div class="field" id="name-field" style="display:none;">
+                    <label>Name</label>
+                    <input type="text" id="auth-name" placeholder="What should I call you?">
+                </div>
+                <div class="field">
+                    <label>Email</label>
+                    <input type="email" id="auth-email" placeholder="you@example.com">
+                </div>
+                <div class="field">
+                    <label>Password</label>
+                    <input type="password" id="auth-password" placeholder="••••••••">
+                </div>
+                <div class="auth-error" id="auth-error"></div>
+                <button type="submit" class="primary-btn" id="auth-submit">Log in</button>
+            </form>
+            <p class="auth-disclaimer">
+                Mindbot is an AI companion, not a substitute for professional care.
+                In a crisis, call <strong>Talian Kasih 15999</strong>.
+            </p>
+        </div>
+    </div>
+
+    <!-- ───────────── APP VIEW ───────────── -->
+    <div id="app-view" class="main-container" style="display:none;">
         <!-- Sidebar -->
         <aside class="sidebar">
             <div class="logo-area">
@@ -25,23 +64,34 @@
                 <i class="fa-solid fa-plus"></i> New Chat
             </button>
 
+            <nav class="side-nav">
+                <button class="nav-btn active" data-view="chat">
+                    <i class="fa-solid fa-comments"></i> Chat
+                </button>
+                <button class="nav-btn" data-view="dashboard">
+                    <i class="fa-solid fa-chart-line"></i> Mood Dashboard
+                </button>
+            </nav>
+
+            <div class="conv-list-label">Recent conversations</div>
+            <div class="conv-list" id="conv-list"></div>
+
+            <div class="sidebar-footer">
+                <span id="user-badge" class="user-badge"></span>
+                <button id="logout-btn" class="logout-btn" title="Log out">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                </button>
+            </div>
         </aside>
 
-        <!-- Main Chat Area -->
-        <main class="chat-area">
+        <!-- Chat area -->
+        <main class="chat-area" id="chat-panel">
             <header class="chat-header">
                 <h2>Welcome to Mindbot</h2>
                 <p>Your safe space to talk and relax.</p>
             </header>
 
-            <div class="messages-container" id="messages-container">
-                <!-- Example Response -->
-                <div class="message bot-message">
-                    <div class="message-content">
-                        Hello! How are you feeling today?
-                    </div>
-                </div>
-            </div>
+            <div class="messages-container" id="messages-container"></div>
 
             <div class="input-area">
                 <div class="input-wrapper">
@@ -52,11 +102,31 @@
                 </div>
             </div>
         </main>
+
+        <!-- Dashboard area -->
+        <main class="dashboard-area" id="dashboard-panel" style="display:none;">
+            <header class="chat-header">
+                <h2>Your Mood Dashboard</h2>
+                <p>How your sentiment has been trending over time.</p>
+            </header>
+
+            <div class="dashboard-scroll">
+                <div class="stat-cards" id="stat-cards"></div>
+
+                <div class="chart-card">
+                    <h3>Sentiment over time</h3>
+                    <canvas id="mood-chart"></canvas>
+                </div>
+
+                <div class="chart-card">
+                    <h3>Emotion distribution</h3>
+                    <canvas id="emotion-chart"></canvas>
+                </div>
+            </div>
+        </main>
     </div>
 
-
-
-    <script src="script.js?v=3"></script>
+    <script src="script.js?v=4"></script>
 </body>
 
 </html>
