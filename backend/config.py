@@ -28,7 +28,18 @@ class Config:
     )
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    # --- LLM rephraser (Ollama) ---
+    # --- LLM backend for response generation ---
+    # "ollama" (local, free) or "claude" (Anthropic API, needs key). Defaults to Ollama.
+    LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama").lower()
+
+    # Claude API. Haiku 4.5 is the cheapest model (lowest $/token) — chosen to
+    # minimise token cost. Set ANTHROPIC_API_KEY in the environment to enable;
+    # if unset, the app falls back to the curated response bank.
+    ANTHROPIC_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5")
+    # Replies are 2-4 sentences, so a small cap keeps token usage (and cost) low.
+    ANTHROPIC_MAX_TOKENS = int(os.environ.get("ANTHROPIC_MAX_TOKENS", "400"))
+
+    # Local Ollama (used only when LLM_PROVIDER=ollama).
     OLLAMA_MODEL = os.environ.get("OLLAMA_MODEL", "llama3.2")
     OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://localhost:11434/api/generate")
     # First call after idle cold-loads the model into RAM and can be slow.

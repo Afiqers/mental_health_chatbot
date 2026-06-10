@@ -1,0 +1,41 @@
+=== System-level crisis detection (held-out test set) ===
+Total messages         : 440
+Actual crisis messages : 110
+
+Recall (crisis caught) : 0.8091   <-- most important
+Precision              : 0.6742
+F1                     : 0.7355
+Specificity            : 0.8697
+Confusion  TP=89  FN=21  FP=43  TN=287
+Missed crises (FN)     : 21
+  Examples of missed crisis messages:
+    - i thought i was getting to be ok. i should have known better. i cannot tell anyone its bad
+    - Alone in my thoughts, late at night My bipolar is getting the best of me
+    - Haven't eaten in 2 daysAll i had was slices of bread with water because i spent all my mon
+    - If you call one do they send the police to check on you Suicide hotlines
+    - Every other day I feel like everyone is problems would be solved if I did not exist. I hav
+
+=== Safety-net spot check (explicit phrases) ===
+Crisis phrases caught   : 14/14
+  [OK ] i want to die
+  [OK ] i want to kill myself
+  [OK ] i'm going to end my life
+  [OK ] i don't want to be alive anymore
+  [OK ] there's no reason to live
+  [OK ] i'd be better off dead
+  [OK ] i want to disappear forever
+  [OK ] i've been thinking about hurting myself
+  [OK ] life isn't worth living
+  [OK ] saya nak mati
+  [OK ] saya nak bunuh diri
+  [OK ] saya tak nak hidup lagi
+  [OK ] lebih baik saya mati
+  [OK ] tiada sebab untuk saya teruskan hidup
+
+False alarms on safe text: 0/6
+  [ok] i'm a bit stressed about work
+  [ok] i feel anxious before exams
+  [ok] i had a great day today
+  [ok] i'm feeling much better now
+  [ok] saya rasa sedikit tertekan
+  [ok] hari ini saya gembira

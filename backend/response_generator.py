@@ -83,52 +83,64 @@ CRITICAL_RESOURCE_MESSAGE = (
     "Please reach out to them—they are trained to help you."
 )
 
+_DISCLAIMER = (
+    "I am an AI, not a licensed therapist or doctor. If you are in immediate "
+    "danger, please reach out to emergency services.\n\n"
+)
+
+
 def generate_response(user_message: str, emotion: str, confidence: float, is_first_message: bool = False, history: list = None) -> str:
     """
-    Generate empathetic response based on emotion and confidence score.
-    history: list of {"role": "user"|"bot", "content": "..."} dicts (last N turns).
-    If confidence is low (< 0.6), asks for clarification.
-    """
-    history = history or []
+    Generate an empathetic, context-aware response.
 
-    # IMMEDIATE SAFETY CHECK
+    Strategy:
+      - SUICIDAL is handled deterministically (fixed crisis resources).
+      - Otherwise we try a context-aware LLM reply grounded in the whole
+        conversation. If the LLM is unavailable, we fall back to the curated
+        template bank (rephrased when possible, raw text as a last resort), so
+        the user always gets a reply.
+
+    history: list of {"role": "user"|"bot", "content": "..."} dicts (last N turns).
+    """
+    import random
+    from llm_rephraser import generate_contextual_reply, rephrase_response, detect_language
+
+    history = history or []
+    user_is_malay = detect_language(user_message) == "Malay"
+
+    # ── IMMEDIATE SAFETY CHECK (deterministic, never free-generated) ──
     if emotion == "SUICIDAL":
         final_response = "I hear how much pain you are in. You are not alone. Please reach out to these professionals who can stay on the line with you right now.\n" + CRITICAL_RESOURCE_MESSAGE
         if is_first_message:
-            final_response = "I am an AI, not a licensed therapist or doctor. If you are in immediate danger, please reach out to emergency services.\n\n" + final_response
-        # Translate to Malay if needed
-        from llm_rephraser import rephrase_response, detect_language
-        if detect_language(user_message) == "Malay":
+            final_response = _DISCLAIMER + final_response
+        if user_is_malay:
             final_response = rephrase_response(final_response, emotion, user_message, history=history)
         return final_response
 
-    from llm_rephraser import rephrase_response, detect_language
+    # ── Context-aware generation (preferred path) ──
+    # Skip generation when we're genuinely unsure what they feel; ask to clarify.
     if confidence < 0.6 and user_message:
         fallback = (
             "I'm not completely sure how you're feeling, "
             "but I'm here to listen. Could you tell me more about what's going on?"
         )
-        if detect_language(user_message) == "Malay":
+        if user_is_malay:
             return rephrase_response(fallback, "UNKNOWN", user_message, history=history)
         return fallback
 
-    # Get list of possible responses for the emotion
-    possible_responses = RESPONSES.get(emotion, RESPONSES["UNKNOWN"])
+    final_response = generate_contextual_reply(user_message, emotion, confidence, history=history)
 
-    import random
-    selected_response = random.choice(possible_responses)
-
-    # Rephrase with LLM if confidence is reasonable, or if user is writing in Malay
-    # (so that GREETING/FAREWELL/UNKNOWN always get translated for Malay users)
-    from llm_rephraser import rephrase_response, detect_language
-    user_is_malay = detect_language(user_message) == "Malay"
-
-    if (emotion not in ["UNKNOWN", "GREETING", "FAREWELL"] and confidence >= 0.7) or user_is_malay:
-        final_response = rephrase_response(selected_response, emotion, user_message, history=history)
-    else:
-        final_response = selected_response
+    # ── Fallback: template bank (when the LLM is offline) ──
+    if not final_response:
+        selected_response = random.choice(RESPONSES.get(emotion, RESPONSES["UNKNOWN"]))
+        # Try to rephrase the template; rephrase_response returns the raw template
+        # unchanged if the LLM is also unreachable.
+        if (emotion not in ["UNKNOWN", "GREETING", "FAREWELL"] and confidence >= 0.7) or user_is_malay:
+            final_response = rephrase_response(selected_response, emotion, user_message, history=history)
+        else:
+            final_response = selected_response
 
     if is_first_message:
-        final_response = "I am an AI, not a licensed therapist or doctor. If you are in immediate danger, please reach out to emergency services.\n\n" + final_response
+        final_response = _DISCLAIMER + final_response
 
     return final_response

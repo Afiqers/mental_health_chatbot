@@ -57,8 +57,17 @@ def chat():
         for m in conversation.messages[-6:]
     ]
 
+    # Most recent user emotion → lets the classifier resolve short follow-ups.
+    prev_emotion = next(
+        (m.emotion for m in reversed(conversation.messages)
+         if m.role == "user" and m.emotion),
+        None,
+    )
+
     # ── NLP analysis ──
-    emotion, confidence, is_high_risk, distribution = classify_text(user_message)
+    emotion, confidence, is_high_risk, distribution = classify_text(
+        user_message, prev_emotion=prev_emotion
+    )
     sentiment_score = score_from_distribution(distribution)
 
     # ── Generate the empathetic reply ──

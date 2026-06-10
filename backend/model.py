@@ -73,11 +73,16 @@ _CRISIS_PHRASES = [
     "want to die", "wanna die", "i want to disappear",
     "don't want to be alive", "dont want to be alive", "not want to be alive",
     "don't want to live", "dont want to live", "no reason to live",
-    "life is not worth living", "better off without me", "better off dead",
-    "hurt myself", "harm myself", "take my own life", "end it all",
+    "not worth living", "isn't worth living", "isnt worth living",
+    "better off without me", "better off dead",
+    "hurt myself", "harm myself", "hurting myself", "harming myself",
+    "take my own life", "end it all",
     # Malay
     "nak mati", "bunuh diri", "tak nak hidup", "tidak mahu hidup",
-    "nak hilang", "lebih baik saya mati", "mahu mati", "ingin mati",
+    "tak nak teruskan hidup", "nak hilang", "lebih baik saya mati",
+    "mahu mati", "ingin mati",
+    "tiada sebab untuk hidup", "tiada sebab untuk teruskan hidup",
+    "tiada sebab untuk saya teruskan hidup",
 ]
 _CRISIS_RE = re.compile("|".join(re.escape(p) for p in _CRISIS_PHRASES))
 
@@ -127,6 +132,17 @@ _KEYWORD_RE = {
     for emo, words in _KEYWORDS.items()
 }
 
+# Words that signal a genuine positive shift — these block context carry-forward
+# so the bot doesn't keep treating someone as distressed once they've improved.
+_POSITIVE_SHIFT_RE = re.compile(
+    r"\b(better|great|good|fine|okay|ok|happy|relieved|calm|calmer|grateful|"
+    r"improving|improved|wonderful|amazing|thanks|thank you|"
+    r"gembira|lega|baik|sihat|seronok|tenang|syukur)\b"
+)
+
+# Distress states worth carrying forward across short, ambiguous follow-ups.
+_CARRY_FORWARD = {"ANXIETY", "DEPRESSION", "STRESS"}
+
 
 def _build_distribution(raw_results):
     """Turn the pipeline's raw output into {EMOTION: probability}."""
@@ -151,8 +167,13 @@ def _lexicon_match(text):
     return None
 
 
-def classify_text(text: str):
-    """Classify input text.
+def classify_text(text: str, prev_emotion: str = None):
+    """Classify input text, optionally using prior conversational context.
+
+    prev_emotion: the emotion of the user's previous message, if any. Used to
+    resolve short, ambiguous follow-ups (e.g. "yes", "it got worse", "my exams")
+    that would otherwise be classified as NORMAL in isolation — the emotional
+    state is carried forward unless the user clearly signals a positive shift.
 
     Returns: (emotion, confidence, is_high_risk, distribution)
       - emotion: top emotional state (str)
@@ -173,7 +194,9 @@ def classify_text(text: str):
         return "SUICIDAL", 0.99, True, {"SUICIDAL": 0.99, "DEPRESSION": 0.01}
 
     # ── ML classifier (primary) ──
-    raw = emotion_classifier(text)[0]
+    # truncation=True guards against very long messages exceeding the model's
+    # 512-token limit (which would otherwise raise a runtime error).
+    raw = emotion_classifier(text, truncation=True)[0]
     distribution = _build_distribution(raw)
     emotion = max(distribution, key=distribution.get)
     confidence = round(distribution[emotion], 3)
@@ -195,6 +218,25 @@ def classify_text(text: str):
             distribution[hinted] = max(distribution.get(hinted, 0.0), 0.7)
             emotion = hinted
             confidence = round(distribution[hinted], 3)
+
+    # ── Context carry-forward ──
+    # If this message reads as neutral/ambiguous but it's a short follow-up to a
+    # distressed turn (and the user hasn't signalled they feel better), keep the
+    # prior emotional context instead of resetting to NORMAL.
+    if prev_emotion and emotion in ("NORMAL", "NEUTRAL", "UNKNOWN"):
+        # A suicidal disclosure decays to sustained concern (DEPRESSION) rather
+        # than re-firing crisis resources on every short reply.
+        carry = "DEPRESSION" if prev_emotion == "SUICIDAL" else prev_emotion
+        # Follow-ups in a support chat are usually short-to-medium; a long new
+        # narrative is more likely a genuine topic change, so we don't carry it.
+        is_followup = len(normalized.split()) <= 15
+        if carry in _CARRY_FORWARD and is_followup and not _POSITIVE_SHIFT_RE.search(normalized):
+            for positive in ("NORMAL", "NEUTRAL"):
+                if positive in distribution:
+                    distribution[positive] *= 0.3
+            distribution[carry] = max(distribution.get(carry, 0.0), 0.6)
+            emotion = carry
+            confidence = max(confidence, 0.6)
 
     is_high_risk = emotion == "SUICIDAL"
     return emotion, confidence, is_high_risk, distribution

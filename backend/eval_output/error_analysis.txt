@@ -1,0 +1,41 @@
+=== Error Analysis — DistilmBERT on held-out test set ===
+Total: 440 | Correct: 349 | Errors: 91 | Accuracy: 0.7932
+
+--- Errors by language ---
+  EN: 44/219 errors (20.1%)
+  MS: 47/221 errors (21.3%)
+
+--- Most common confusions (Actual -> Predicted) ---
+   Depression -> Suicidal     (30 times)
+     Suicidal -> Depression   (12 times)
+   Depression -> Anxiety      (11 times)
+     Suicidal -> Normal       (8 times)
+      Anxiety -> Suicidal     (7 times)
+       Normal -> Suicidal     (5 times)
+      Anxiety -> Depression   (5 times)
+       Normal -> Anxiety      (4 times)
+
+--- Example misclassifications ---
+
+[Depression misread as Suicidal]
+  (ms) "Saya tidak boleh tidur, gemetar dan fikiran saya seperti terperangkap dalam ribut. Seperti terlalu banyak yang berlaku. Terlalu banyak dan s"
+  (en) "i just have no one to tell right now. she's laying there breathless. right in the house. right in my house. some minutes ago she still was a"
+  (ms) "Setiap hari saya bangun. Daya hidup berkurangan sebelum saya memulakan hari. Walaupun saya mendapat tidur yang sesuai. Tidak seperti saya me"
+
+[Suicidal misread as Depression]
+  (en) "i thought i was getting to be ok. i should have known better. i cannot tell anyone its bad again. they will be so disappointed. i want to sl"
+  (en) "Every other day I feel like everyone is problems would be solved if I did not exist. I have been hearing voices for about six months now, an"
+  (en) "I just want everything to be over. there is no point in going on because things will not get better. I just want to stop feeling like shit a"
+
+[Depression misread as Anxiety]
+  (ms) "Wah, saya telah berada di tempat kerja saya selama sebulan hari ini. bagi saya itu adalah pencapaian kecil. tinggal dengan apa-apa selama se"
+  (ms) "Saya mahu mati sangat teruk. Saya berumur 18 m. Saya baru sahaja berjumpa dengan ayah saya kali terakhir saya berhubung dengannya pada hari "
+  (en) "Is serotonin syndrome painful? How painful is it and what are the chances of dying from it"
+
+[Suicidal misread as Normal]
+  (en) "Alone in my thoughts, late at night My bipolar is getting the best of me"
+  (en) "Haven't eaten in 2 daysAll i had was slices of bread with water because i spent all my money on meth to get high few nights, was it worth it"
+  (en) "If you call one do they send the police to check on you Suicide hotlines"
+
+--- Discussion ---
+The dominant confusion is typically DEPRESSION <-> SUICIDAL: both share vocabulary of hopelessness and worthlessness, so the boundary is genuinely fuzzy even for humans. This is precisely why the system keeps a deterministic crisis safety net rather than trusting the classifier alone for self-harm.
