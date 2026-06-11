@@ -14,6 +14,14 @@ PROJECT_ROOT = os.path.dirname(BASE_DIR)
 DATA_DIR = os.path.join(PROJECT_ROOT, "data")
 os.makedirs(DATA_DIR, exist_ok=True)
 
+# Load secrets (e.g. GEMINI_API_KEY) from a gitignored .env file at the project
+# root, so keys live in the environment and never in tracked source code.
+try:
+    from dotenv import load_dotenv
+    load_dotenv(os.path.join(PROJECT_ROOT, ".env"))
+except Exception:
+    pass
+
 
 class Config:
     # --- Flask / security ---
@@ -29,8 +37,15 @@ class Config:
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     # --- LLM backend for response generation ---
-    # "ollama" (local, free) or "claude" (Anthropic API, needs key). Defaults to Ollama.
-    LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "ollama").lower()
+    # "gemini" (Google free tier, default), "ollama" (local), or "claude" (Anthropic).
+    # When "gemini" is selected it automatically falls back to local Ollama if the
+    # Gemini quota/rate limit is hit, so replies keep flowing.
+    LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini").lower()
+
+    # Google Gemini (free tier). Key is read from the environment / .env file and
+    # is never hard-coded. gemini-2.0-flash is fast and on the free tier.
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+    GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
 
     # Claude API. Haiku 4.5 is the cheapest model (lowest $/token) — chosen to
     # minimise token cost. Set ANTHROPIC_API_KEY in the environment to enable;

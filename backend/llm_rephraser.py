@@ -1,4 +1,6 @@
 import json
+import os
+import time
 import urllib.request
 import urllib.error
 
@@ -6,6 +8,8 @@ try:
     # Centralised config when run inside the app.
     from config import Config
     LLM_PROVIDER = Config.LLM_PROVIDER
+    GEMINI_API_KEY = Config.GEMINI_API_KEY
+    GEMINI_MODEL = Config.GEMINI_MODEL
     ANTHROPIC_MODEL = Config.ANTHROPIC_MODEL
     ANTHROPIC_MAX_TOKENS = Config.ANTHROPIC_MAX_TOKENS
     OLLAMA_MODEL = Config.OLLAMA_MODEL
@@ -13,7 +17,9 @@ try:
     OLLAMA_TIMEOUT = Config.OLLAMA_TIMEOUT
 except Exception:
     # Standalone fallback (e.g. running this file directly in a test).
-    LLM_PROVIDER = "claude"
+    LLM_PROVIDER = os.environ.get("LLM_PROVIDER", "gemini")
+    GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+    GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
     ANTHROPIC_MODEL = "claude-haiku-4-5"
     ANTHROPIC_MAX_TOKENS = 400
     OLLAMA_MODEL = "llama3.2"
@@ -45,6 +51,15 @@ _SENTIMENT_GUIDE = {
     "SUICIDAL": "HIGH_DISTRESS / CRISIS — acknowledge pain directly, share crisis resources, encourage professional help",
     "HIGH_RISK": "HIGH_DISTRESS / CRISIS — acknowledge pain directly, share crisis resources, encourage professional help",
 }
+
+# Target reply length. Keeps responses from being curt one-liners or rambling
+# paragraphs — a consistent, readable size for a chat bubble.
+_LENGTH_RULE = (
+    "LENGTH: Write 2 to 4 sentences, roughly 40-75 words. Long enough to feel "
+    "warm and specific, short enough to read at a glance. Never reply with a "
+    "single short line, and never write more than four sentences or multiple "
+    "paragraphs."
+)
 
 
 def detect_language(text: str) -> str:
@@ -89,10 +104,20 @@ def _solace_system_prompt(user_language: str) -> str:
 
 def _call_llm(system_prompt: str, prompt: str, temperature: float = 0.7):
     """Dispatch to the configured LLM backend. Returns text, or None on failure
-    (so callers fall back to the curated template bank)."""
+    (so callers fall back to the curated template bank).
+
+    For the default "gemini" provider, if Gemini fails or is rate-limited we
+    automatically fall back to the local Ollama model so replies keep flowing.
+    """
     if LLM_PROVIDER == "ollama":
         return _call_ollama(system_prompt, prompt, temperature)
-    return _call_claude(system_prompt, prompt, temperature)
+    if LLM_PROVIDER == "claude":
+        return _call_claude(system_prompt, prompt, temperature)
+    # Default: Gemini first, then local Ollama as a fallback.
+    result = _call_gemini(system_prompt, prompt, temperature)
+    if result is not None:
+        return result
+    return _call_ollama(system_prompt, prompt, temperature)
 
 
 # Lazily-constructed Anthropic client (reused across calls). None until first
@@ -138,6 +163,56 @@ def _call_claude(system_prompt: str, prompt: str, temperature: float = 0.7):
         return None
 
 
+# After a Gemini rate-limit (429) we skip Gemini for a short window and use the
+# Ollama fallback instead of retrying (and failing) on every message.
+_gemini_cooldown_until = 0.0
+GEMINI_COOLDOWN_SECONDS = 60
+
+
+def _call_gemini(system_prompt: str, prompt: str, temperature: float = 0.7):
+    """Call the Google Gemini API (free tier). Returns text, or None on failure.
+
+    On a 429 (quota / rate limit) it starts a short cooldown so the caller falls
+    straight through to Ollama until the limit resets.
+    """
+    global _gemini_cooldown_until
+    if not GEMINI_API_KEY:
+        return None
+    if time.time() < _gemini_cooldown_until:
+        return None  # recently rate-limited — let the caller use the fallback
+
+    url = (f"https://generativelanguage.googleapis.com/v1beta/models/"
+           f"{GEMINI_MODEL}:generateContent?key={GEMINI_API_KEY}")
+    data = {
+        "system_instruction": {"parts": [{"text": system_prompt}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": temperature, "maxOutputTokens": 300},
+    }
+    req = urllib.request.Request(
+        url, data=json.dumps(data).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as response:
+            result = json.loads(response.read().decode("utf-8"))
+        candidates = result.get("candidates") or []
+        if not candidates:
+            return None
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = "".join(part.get("text", "") for part in parts).strip(" \n\"")
+        return text or None
+    except urllib.error.HTTPError as e:
+        if e.code == 429:
+            _gemini_cooldown_until = time.time() + GEMINI_COOLDOWN_SECONDS
+            print(f"Gemini rate limit (429). Falling back to Ollama for {GEMINI_COOLDOWN_SECONDS}s.")
+        else:
+            print(f"Gemini API error: HTTP {e.code}")
+        return None
+    except Exception as e:
+        print(f"Gemini API error: {e}")
+        return None
+
+
 def _call_ollama(system_prompt: str, prompt: str, temperature: float = 0.7):
     """Call the local Ollama model. Returns the text, or None on any failure."""
     data = {
@@ -145,7 +220,9 @@ def _call_ollama(system_prompt: str, prompt: str, temperature: float = 0.7):
         "system": system_prompt,
         "prompt": prompt,
         "stream": False,
-        "options": {"temperature": temperature},
+        # num_predict caps generation length as a safety net; ~220 tokens is
+        # generous for a 2-4 sentence reply but stops the model from rambling.
+        "options": {"temperature": temperature, "num_predict": 220},
     }
     req = urllib.request.Request(
         OLLAMA_URL,
@@ -197,12 +274,13 @@ def generate_contextual_reply(user_message: str, emotion: str, confidence: float
         f"- Mirror their emotional tone: calm if they're calm, gentle if they're distressed.\n"
         f"- For MILD/MODERATE distress, you may offer ONE simple, concrete coping idea "
         f"(a breathing or grounding exercise, a tiny next step) — but only after validating.\n"
-        f"- Keep it concise: 2–4 sentences. Speak warmly, no clinical jargon.\n"
+        f"- {_LENGTH_RULE}\n"
+        f"- Speak warmly, with no clinical jargon.\n"
         f"- Never diagnose, prescribe, or claim to replace professional care.\n"
         f"- Never be dismissive or toxic-positive (e.g. 'Everything will be fine!').\n"
         f"- End with ONE gentle, open-ended question that moves the conversation forward.\n\n"
 
-        f"REMINDER: Respond entirely in {user_language}. "
+        f"REMINDER: Respond entirely in {user_language}, in 2-4 sentences (about 40-75 words). "
         f"Output only Solace's reply — no quotation marks, no preamble, no labels."
     )
 
@@ -233,7 +311,7 @@ def rephrase_response(text: str, emotion: str, user_message: str = "", history: 
         f"- Mirror the user's emotional tone — calm if they're calm, gentle if they're distressed.\n"
         f"- Use active listening: reflect what you sense, then ask one gentle open-ended follow-up question.\n"
         f"- Never diagnose, prescribe, or claim to replace professional mental health care.\n"
-        f"- Keep responses concise (2–4 sentences max) unless the user clearly needs more.\n"
+        f"- {_LENGTH_RULE}\n"
         f"- Avoid clinical jargon — speak like a caring, warm human companion.\n"
         f"- Never be dismissive, toxic-positive (e.g., 'Semua akan baik-baik saja!'), or give unsolicited advice.\n\n"
 
@@ -246,7 +324,7 @@ def rephrase_response(text: str, emotion: str, user_message: str = "", history: 
         f"4. End with a gentle open-ended question to keep the conversation going — UNLESS the emotion is "
         f"SUICIDAL or HIGH_RISK, in which case stay focused entirely on their safety.\n\n"
 
-        f"REMINDER: Respond entirely in {user_language}. "
+        f"REMINDER: Respond entirely in {user_language}, in 2-4 sentences (about 40-75 words). "
         f"Output the rephrased response directly. No quotation marks, no preamble, no filler phrases."
     )
 
